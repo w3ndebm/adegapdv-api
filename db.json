@@ -1,0 +1,67 @@
+{
+  "estabelecimentos": [
+    {
+      "id": 1,
+      "nome": "Adega do João",
+      "cnpj": "12.345.678/0001-90",
+      "endereco": "Rua das Adegas, 123",
+      "telefone": "(11) 99999-9999",
+      "plano": "premium",
+      "ativo": true,
+      "dataCadastro": "2024-01-01T00:00:00.000Z",
+      "configuracao": {
+        "totalMesas": 10,
+        "totalComandas": 30,
+        "corTema": "emerald"
+      }
+    }
+  ],
+  "usuarios": [
+    {
+      "id": 1,
+      "nome": "Super Admin",
+      "email": "super@admin.com",
+      "senha": "admin123",
+      "estabelecimentoId": null,
+      "cargo": "super_admin",
+      "ativo": true,
+      "criadoPor": null
+    },
+    {
+      "id": 2,
+      "nome": "João Silva",
+      "email": "joao@adegaa.com",
+      "senha": "123",
+      "estabelecimentoId": 1,
+      "cargo": "admin",
+      "ativo": true,
+      "criadoPor": 1
+    },
+    {
+      "id": 3,
+      "nome": "Carlos Oliveira",
+      "email": "carlos@adegaa.com",
+      "senha": "123",
+      "estabelecimentoId": 1,
+      "cargo": "caixa",
+      "ativo": true,
+      "criadoPor": 2
+    },
+    {
+      "id": 4,
+      "nome": "Maria Santos",
+      "email": "maria@adegab.com",
+      "senha": "123",
+      "estabelecimentoId": 2,
+      "cargo": "admin",
+      "ativo": true,
+      "criadoPor": 1
+    }
+  ],
+  "produtos": [],
+  "pedidos": [],
+  "comandas": [],
+  "movimentacoes": [],
+  "fechamentos": [],
+  "configuracoes": []
+}

@@ -14,6 +14,21 @@
         "totalComandas": 30,
         "corTema": "emerald"
       }
+    },
+    {
+      "id": 2,
+      "nome": "Tabacaria da Maria",
+      "cnpj": "98.765.432/0001-10",
+      "endereco": "Av. Tabacaria, 456",
+      "telefone": "(11) 88888-8888",
+      "plano": "basico",
+      "ativo": true,
+      "dataCadastro": "2024-01-01T00:00:00.000Z",
+      "configuracao": {
+        "totalMesas": 5,
+        "totalComandas": 15,
+        "corTema": "amber"
+      }
     }
   ],
   "usuarios": [
@@ -63,5 +78,6 @@
   "comandas": [],
   "movimentacoes": [],
   "fechamentos": [],
-  "configuracoes": []
+  "configuracoes": [],
+  "pendentes": []
 }

@@ -1,25 +1,41 @@
-// ==========================================
-// SERVIDOR JSON - ADEGA PDV
-// ==========================================
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const pool = require('./db-postgres');
 
-const jsonServer = require('json-server');
-const server = jsonServer.create();
-const router = jsonServer.router('db.json');
-const middlewares = jsonServer.defaults();
+const app = express();
+app.use(cors());
+app.use(express.json());
 
-// Permitir CORS (para acesso de qualquer lugar)
-server.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-  next();
+// Rota de teste
+app.get('/status', (req, res) => {
+  res.json({ status: 'API online com PostgreSQL!' });
 });
 
-server.use(middlewares);
-server.use(router);
+// Cadastrar usuário pendente
+app.post('/pendentes', async (req, res) => {
+  const { nome, email, senha, estabelecimentoId, cargo } = req.body;
+  try {
+    const result = await pool.query(
+      `INSERT INTO usuarios (nome, email, senha, estabelecimento_id, cargo, ativo) 
+       VALUES ($1, $2, $3, $4, $5, false) RETURNING *`,
+      [nome, email, senha, estabelecimentoId, cargo]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Listar usuários pendentes
+app.get('/pendentes', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM usuarios WHERE ativo = false');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando em http://localhost:${PORT}`);
-  console.log(`📦 Banco de dados: db.json`);
-});
+app.listen(PORT, () => console.log(`🚀 Servidor rodando na porta ${PORT}`));

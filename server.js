@@ -165,10 +165,26 @@ app.get('/status', (req, res) => {
 // Listar todos os usuários
 app.get('/usuarios', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM usuarios ORDER BY id');
+    const result = await pool.query(`
+      SELECT
+        id,
+        nome,
+        email,
+        senha,
+        estabelecimento_id AS "estabelecimentoId",
+        cargo,
+        ativo,
+        criado_por AS "criadoPor"
+      FROM usuarios
+      ORDER BY id
+    `);
+
     res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    console.error('Erro ao buscar usuários:', error);
+    res.status(500).json({
+      error: 'Erro ao buscar usuários'
+    });
   }
 });
 
@@ -324,10 +340,27 @@ app.delete('/estabelecimentos/:id', async (req, res) => {
 // Listar pendentes
 app.get('/pendentes', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM usuarios WHERE ativo = false');
+    const result = await pool.query(`
+      SELECT
+        id,
+        nome,
+        email,
+        senha,
+        estabelecimento_id AS "estabelecimentoId",
+        cargo,
+        ativo,
+        criado_por AS "criadoPor"
+      FROM usuarios
+      WHERE ativo = false
+      ORDER BY id
+    `);
+
     res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    console.error('Erro ao buscar pendentes:', error);
+    res.status(500).json({
+      error: 'Erro ao buscar pendentes'
+    });
   }
 });
 
@@ -494,7 +527,156 @@ app.get('/criar-tabelas', async (req, res) => {
 // INICIAR SERVIDOR
 // ==========================================
 
+app.post('/login', async (req, res) => {
+  try {
+    const { email, senha } = req.body;
+
+    if (!email || !senha) {
+      return res.status(400).json({
+        success: false,
+        error: 'E-mail e senha são obrigatórios'
+      });
+    }
+
+    const result = await pool.query(`
+      SELECT
+        id,
+        nome,
+        email,
+        senha,
+        estabelecimento_id AS "estabelecimentoId",
+        cargo,
+        ativo,
+        criado_por AS "criadoPor"
+      FROM usuarios
+      WHERE LOWER(TRIM(email)) = LOWER(TRIM($1))
+      LIMIT 1
+    `, [email]);
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({
+        success: false,
+        error: 'Usuário ou senha incorretos'
+      });
+    }
+
+    const usuario = result.rows[0];
+
+    if (!usuario.ativo) {
+      return res.status(403).json({
+        success: false,
+        error: 'Usuário ainda não foi aprovado'
+      });
+    }
+
+    if (String(usuario.senha) !== String(senha)) {
+      return res.status(401).json({
+        success: false,
+        error: 'Usuário ou senha incorretos'
+      });
+    }
+
+    delete usuario.senha;
+
+    res.json({
+      success: true,
+      usuario: usuario
+    });
+
+  } catch (error) {
+
+    console.error('❌ Erro no login:', error);
+
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno ao realizar login'
+    });
+  }
+});
 const PORT = process.env.PORT || 3000;
+
+// ===============================
+// LOGIN
+// ===============================
+app.post('/login', async (req, res) => {
+  try {
+    const { email, senha } = req.body;
+
+    console.log('🔐 Tentativa de login:', email);
+
+    if (!email || !senha) {
+      return res.status(400).json({
+        success: false,
+        error: 'E-mail e senha são obrigatórios'
+      });
+    }
+
+    const result = await pool.query(`
+      SELECT
+        id,
+        nome,
+        email,
+        senha,
+        estabelecimento_id AS "estabelecimentoId",
+        cargo,
+        ativo,
+        criado_por AS "criadoPor"
+      FROM usuarios
+      WHERE LOWER(TRIM(email)) = LOWER(TRIM($1))
+      LIMIT 1
+    `, [email]);
+
+    if (result.rows.length === 0) {
+      console.log('❌ Usuário não encontrado:', email);
+
+      return res.status(401).json({
+        success: false,
+        error: 'Usuário ou senha incorretos'
+      });
+    }
+
+    const usuario = result.rows[0];
+
+    console.log('👤 Usuário encontrado:', usuario.nome);
+    console.log('🏢 Estabelecimento:', usuario.estabelecimentoId);
+    console.log('👔 Cargo:', usuario.cargo);
+    console.log('✅ Ativo:', usuario.ativo);
+
+    if (!usuario.ativo) {
+      return res.status(403).json({
+        success: false,
+        error: 'Usuário ainda não foi aprovado'
+      });
+    }
+
+    if (String(usuario.senha) !== String(senha)) {
+      console.log('❌ Senha incorreta para:', email);
+
+      return res.status(401).json({
+        success: false,
+        error: 'Usuário ou senha incorretos'
+      });
+    }
+
+    // Não enviar a senha de volta para o navegador
+    delete usuario.senha;
+
+    console.log('✅ LOGIN REALIZADO COM SUCESSO:', usuario.nome);
+
+    res.json({
+      success: true,
+      usuario: usuario
+    });
+
+  } catch (error) {
+    console.error('❌ Erro no login:', error);
+
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno ao realizar login'
+    });
+  }
+});
 
 // Criar tabelas antes de iniciar o servidor
 criarTabelas().then(() => {

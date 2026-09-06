@@ -317,6 +317,11 @@ app.delete('/estabelecimentos/:id', async (req, res) => {
 // ==========================================
 
 // Listar pendentes
+// ==========================================
+// PENDENTES (Cadastros aguardando aprovação)
+// ==========================================
+
+// Listar pendentes
 app.get('/pendentes', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM usuarios WHERE ativo = false');
@@ -326,17 +331,22 @@ app.get('/pendentes', async (req, res) => {
   }
 });
 
-// Criar pendente
+// Criar pendente (CORRIGIDO)
 app.post('/pendentes', async (req, res) => {
   const { nome, email, senha, estabelecimentoId, cargo } = req.body;
   try {
+    // Se cargo for null ou undefined, usar 'cliente' como padrão
+    const cargoFinal = cargo || 'cliente';
+    const estabelecimentoFinal = estabelecimentoId || null;
+    
     const result = await pool.query(
       `INSERT INTO usuarios (nome, email, senha, estabelecimento_id, cargo, ativo) 
        VALUES ($1, $2, $3, $4, $5, false) RETURNING *`,
-      [nome, email, senha, estabelecimentoId, cargo]
+      [nome, email, senha, estabelecimentoFinal, cargoFinal]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
+    console.error('❌ Erro ao criar pendente:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -354,7 +364,6 @@ app.delete('/pendentes/:id', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 // ==========================================
 // ROTA PARA CRIAR TABELAS (VIA GET)
 // ==========================================

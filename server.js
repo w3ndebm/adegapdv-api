@@ -333,22 +333,49 @@ app.post('/usuarios', async (req, res) => {
   }
 });
 
-// Atualizar usuário
+// Atualizar usuário (CORRIGIDO - preserva valores existentes)
 app.put('/usuarios/:id', async (req, res) => {
   const { id } = req.params;
   const { nome, email, senha, estabelecimentoId, cargo, ativo } = req.body;
+  
   try {
+    // Buscar o usuário existente
+    const resultExistente = await pool.query('SELECT * FROM usuarios WHERE id = $1', [id]);
+    
+    if (resultExistente.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+    
+    const user = resultExistente.rows[0];
+    
+    // 🔥 IMPORTANTE: Preservar valores existentes se não forem fornecidos
+    const nomeFinal = nome !== undefined ? nome : user.nome;
+    const emailFinal = email !== undefined ? email : user.email;
+    const senhaFinal = senha !== undefined ? senha : user.senha;
+    const estabelecimentoIdFinal = estabelecimentoId !== undefined ? estabelecimentoId : user.estabelecimento_id;
+    const cargoFinal = cargo !== undefined ? cargo : user.cargo;
+    const ativoFinal = ativo !== undefined ? ativo : user.ativo;
+    
     const result = await pool.query(
       `UPDATE usuarios 
-       SET nome = $1, email = $2, senha = $3, estabelecimento_id = $4, cargo = $5, ativo = $6
-       WHERE id = $7 RETURNING *`,
-      [nome, email, senha, estabelecimentoId, cargo, ativo, id]
+       SET nome = $1, 
+           email = $2, 
+           senha = $3, 
+           estabelecimento_id = $4, 
+           cargo = $5, 
+           ativo = $6
+       WHERE id = $7 
+       RETURNING *`,
+      [nomeFinal, emailFinal, senhaFinal, estabelecimentoIdFinal, cargoFinal, ativoFinal, id]
     );
+    
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
+    
     res.json(result.rows[0]);
   } catch (err) {
+    console.error('❌ Erro ao atualizar usuário:', err);
     res.status(500).json({ error: err.message });
   }
 });

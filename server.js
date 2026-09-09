@@ -615,7 +615,212 @@ app.post('/login', async (req, res) => {
 // ==========================================
 // INICIAR SERVIDOR
 // ==========================================
+// ==========================================
+// LOGIN
+// ==========================================
 
+// ======================================================
+// DEBUG - VERIFICAR QUAL BANCO O SERVIDOR ESTÁ USANDO
+// ======================================================
+app.get('/debug/banco', async (req, res) => {
+  try {
+    const banco = await pool.query(`
+      SELECT
+        current_database() AS banco,
+        current_user AS usuario_banco,
+        current_schema() AS schema
+    `);
+
+    const usuarios = await pool.query(`
+      SELECT
+        COUNT(*)::int AS quantidade
+      FROM usuarios
+    `);
+
+    const superAdmin = await pool.query(`
+      SELECT
+        id,
+        nome,
+        email,
+        cargo,
+        ativo,
+        estabelecimento_id AS "estabelecimentoId"
+      FROM usuarios
+      WHERE LOWER(TRIM(email)) = LOWER(TRIM('super@admin.com'))
+      LIMIT 1
+    `);
+
+    res.json({
+      sucesso: true,
+      banco: banco.rows[0],
+      quantidadeUsuarios: usuarios.rows[0].quantidade,
+      superAdminEncontrado: superAdmin.rows.length > 0,
+      usuario: superAdmin.rows[0] || null
+    });
+
+  } catch (error) {
+    console.error('ERRO DEBUG BANCO:', error);
+
+    res.status(500).json({
+      sucesso: false,
+      erro: error.message
+    });
+  }
+});
+// ==========================================
+// LOGIN - POSTGRESQL
+// ==========================================
+
+// ======================================================
+// LOGIN
+// ======================================================
+app.post('/login', async (req, res) => {
+  try {
+
+    let { email, senha } = req.body;
+
+    // Normaliza os dados recebidos
+    email = String(email || '').trim().toLowerCase();
+    senha = String(senha || '').trim();
+
+    console.log('');
+    console.log('======================================');
+    console.log('🔐 NOVA TENTATIVA DE LOGIN');
+    console.log('📧 Email:', email);
+    console.log('======================================');
+
+    // --------------------------------------
+    // VALIDA CAMPOS
+    // --------------------------------------
+    if (!email || !senha) {
+
+      console.log('❌ Email ou senha não informado');
+
+      return res.status(400).json({
+        success: false,
+        codigo: 'CAMPOS_OBRIGATORIOS',
+        error: 'E-mail e senha são obrigatórios'
+      });
+    }
+
+    // --------------------------------------
+    // PROCURA USUÁRIO
+    // --------------------------------------
+    const result = await pool.query(`
+      SELECT
+        u.id,
+        u.nome,
+        u.email,
+        u.senha,
+        u.estabelecimento_id AS "estabelecimentoId",
+        u.cargo,
+        u.ativo,
+
+        e.nome AS "estabelecimentoNome",
+        e.ativo AS "estabelecimentoAtivo",
+        e.total_mesas AS "totalMesas",
+        e.total_comandas AS "totalComandas"
+
+      FROM usuarios u
+
+      LEFT JOIN estabelecimentos e
+        ON e.id = u.estabelecimento_id
+
+      WHERE LOWER(TRIM(u.email)) = LOWER(TRIM($1))
+
+      LIMIT 1
+    `, [email]);
+
+    // --------------------------------------
+    // USUÁRIO NÃO EXISTE
+    // --------------------------------------
+    if (result.rows.length === 0) {
+
+      console.log('❌ EMAIL NÃO ENCONTRADO NO BANCO');
+      console.log('📧 Email pesquisado:', email);
+
+      return res.status(401).json({
+        success: false,
+        codigo: 'EMAIL_NAO_ENCONTRADO',
+        error: 'E-mail ou senha incorretos'
+      });
+    }
+
+    const usuario = result.rows[0];
+
+    console.log('✅ USUÁRIO ENCONTRADO');
+    console.log('👤 Nome:', usuario.nome);
+    console.log('📧 Email:', usuario.email);
+    console.log('👔 Cargo:', usuario.cargo);
+    console.log('🟢 Ativo:', usuario.ativo);
+    console.log('🏢 Estabelecimento:', usuario.estabelecimentoId);
+
+    // --------------------------------------
+    // USUÁRIO DESATIVADO
+    // --------------------------------------
+    if (usuario.ativo !== true) {
+
+      console.log('❌ USUÁRIO DESATIVADO');
+
+      return res.status(403).json({
+        success: false,
+        codigo: 'USUARIO_INATIVO',
+        error: 'Este usuário está desativado'
+      });
+    }
+
+    // --------------------------------------
+    // COMPARAÇÃO DA SENHA
+    // --------------------------------------
+    const senhaBanco = String(usuario.senha || '');
+
+    console.log('🔑 Senha recebida:', senha ? 'SIM' : 'NÃO');
+    console.log('🔑 Senha cadastrada:', senhaBanco ? 'SIM' : 'NÃO');
+
+    if (senhaBanco !== senha) {
+
+      console.log('❌ SENHA INCORRETA');
+
+      return res.status(401).json({
+        success: false,
+        codigo: 'SENHA_INCORRETA',
+        error: 'E-mail ou senha incorretos'
+      });
+    }
+
+    // --------------------------------------
+    // REMOVE SENHA DA RESPOSTA
+    // --------------------------------------
+    delete usuario.senha;
+
+    console.log('======================================');
+    console.log('✅ LOGIN REALIZADO COM SUCESSO');
+    console.log('👤', usuario.nome);
+    console.log('======================================');
+
+    // --------------------------------------
+    // RETORNA USUÁRIO
+    // --------------------------------------
+    return res.json({
+      success: true,
+      usuario: usuario
+    });
+
+  } catch (error) {
+
+    console.error('');
+    console.error('======================================');
+    console.error('❌ ERRO NO LOGIN');
+    console.error(error);
+    console.error('======================================');
+
+    return res.status(500).json({
+      success: false,
+      codigo: 'ERRO_SERVIDOR',
+      error: 'Erro interno ao realizar login'
+    });
+  }
+});
 const PORT = process.env.PORT || 3000;
 
 criarTabelas().then(() => {

@@ -14,139 +14,143 @@ app.use(express.json());
 async function criarTabelas() {
   const client = await pool.connect();
   try {
-    console.log('🔄 Criando tabelas...');
+    console.log('🔄 Verificando/criando tabelas...');
+
+    // IMPORTANTE: este schema é compatível com as tabelas que você já criou no Supabase.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS estabelecimentos (
+        id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+        nome TEXT NOT NULL,
+        cnpj TEXT,
+        endereco TEXT,
+        telefone TEXT,
+        plano TEXT DEFAULT 'basico',
+        total_mesas INT DEFAULT 10,
+        total_comandas INT DEFAULT 30,
+        ativo BOOLEAN DEFAULT TRUE,
+        criado_em TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
+      )
+    `);
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS usuarios (
-        id SERIAL PRIMARY KEY,
-        nome VARCHAR(255) NOT NULL,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        senha VARCHAR(255) NOT NULL,
-        estabelecimento_id INTEGER,
-        cargo VARCHAR(50) NOT NULL,
-        ativo BOOLEAN DEFAULT true,
-        criado_por INTEGER,
-        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+        nome TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        senha TEXT NOT NULL,
+        cargo TEXT DEFAULT 'atendente',
+        estabelecimento_id BIGINT REFERENCES estabelecimentos(id),
+        ativo BOOLEAN DEFAULT TRUE,
+        criado_em TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
       )
     `);
-    console.log('✅ Tabela "usuarios" criada/verificada');
 
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS estabelecimentos (
-        id SERIAL PRIMARY KEY,
-        nome VARCHAR(255) NOT NULL,
-        cnpj VARCHAR(20),
-        endereco TEXT,
-        telefone VARCHAR(20),
-        plano VARCHAR(50) DEFAULT 'basico',
-        ativo BOOLEAN DEFAULT true,
-        data_cadastro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        configuracao JSONB
-      )
-    `);
-    console.log('✅ Tabela "estabelecimentos" criada/verificada');
-
+    // Tabelas operacionais. Só são criadas se ainda não existirem.
     await client.query(`
       CREATE TABLE IF NOT EXISTS produtos (
-        id SERIAL PRIMARY KEY,
-        estabelecimento_id INTEGER NOT NULL,
-        nome VARCHAR(255) NOT NULL,
-        categoria VARCHAR(100),
+        id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+        estabelecimento_id BIGINT NOT NULL REFERENCES estabelecimentos(id) ON DELETE CASCADE,
+        nome TEXT NOT NULL,
+        categoria TEXT,
         custo DECIMAL(10,2),
         preco DECIMAL(10,2),
         estoque INTEGER DEFAULT 0,
-        imagem TEXT,
-        FOREIGN KEY (estabelecimento_id) REFERENCES estabelecimentos(id) ON DELETE CASCADE
+        imagem TEXT
       )
     `);
-    console.log('✅ Tabela "produtos" criada/verificada');
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS pedidos (
-        id SERIAL PRIMARY KEY,
-        estabelecimento_id INTEGER NOT NULL,
-        data TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        operador VARCHAR(255),
-        tipo_consumo VARCHAR(50),
+        id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+        estabelecimento_id BIGINT NOT NULL REFERENCES estabelecimentos(id) ON DELETE CASCADE,
+        data TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        operador TEXT,
+        tipo_consumo TEXT,
         itens JSONB,
         total DECIMAL(10,2),
-        status_pagamento VARCHAR(50),
-        forma_pagamento VARCHAR(50),
+        status_pagamento TEXT,
+        forma_pagamento TEXT,
         valor_recebido DECIMAL(10,2),
-        troco DECIMAL(10,2),
-        FOREIGN KEY (estabelecimento_id) REFERENCES estabelecimentos(id) ON DELETE CASCADE
+        troco DECIMAL(10,2)
       )
     `);
-    console.log('✅ Tabela "pedidos" criada/verificada');
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS comandas (
-        id SERIAL PRIMARY KEY,
-        estabelecimento_id INTEGER NOT NULL,
+        id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+        estabelecimento_id BIGINT NOT NULL REFERENCES estabelecimentos(id) ON DELETE CASCADE,
         num_comanda INTEGER NOT NULL,
         num_mesa INTEGER,
-        identificacao VARCHAR(255),
+        identificacao TEXT,
         itens JSONB,
-        narguile BOOLEAN DEFAULT false,
+        narguile BOOLEAN DEFAULT FALSE,
         tempo_total_minutos INTEGER,
-        tempo_restante INTEGER,
-        FOREIGN KEY (estabelecimento_id) REFERENCES estabelecimentos(id) ON DELETE CASCADE
+        tempo_restante INTEGER
       )
     `);
-    console.log('✅ Tabela "comandas" criada/verificada');
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS movimentacoes (
-        id SERIAL PRIMARY KEY,
-        estabelecimento_id INTEGER NOT NULL,
-        data TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        tipo VARCHAR(50),
+        id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+        estabelecimento_id BIGINT NOT NULL REFERENCES estabelecimentos(id) ON DELETE CASCADE,
+        data TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        tipo TEXT,
         valor DECIMAL(10,2),
         motivo TEXT,
-        operador VARCHAR(255),
-        FOREIGN KEY (estabelecimento_id) REFERENCES estabelecimentos(id) ON DELETE CASCADE
+        operador TEXT
       )
     `);
-    console.log('✅ Tabela "movimentacoes" criada/verificada');
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS fechamentos (
-        id SERIAL PRIMARY KEY,
-        estabelecimento_id INTEGER NOT NULL,
-        data TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        operador VARCHAR(255),
-        valor_contado DECIMAL(10,2),
-        FOREIGN KEY (estabelecimento_id) REFERENCES estabelecimentos(id) ON DELETE CASCADE
+        id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+        estabelecimento_id BIGINT NOT NULL REFERENCES estabelecimentos(id) ON DELETE CASCADE,
+        data TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        operador TEXT,
+        valor_contado DECIMAL(10,2)
       )
     `);
-    console.log('✅ Tabela "fechamentos" criada/verificada');
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS configuracoes (
-        id SERIAL PRIMARY KEY,
-        estabelecimento_id INTEGER NOT NULL,
-        chave VARCHAR(100),
-        valor JSONB,
-        FOREIGN KEY (estabelecimento_id) REFERENCES estabelecimentos(id) ON DELETE CASCADE
+        id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+        estabelecimento_id BIGINT NOT NULL REFERENCES estabelecimentos(id) ON DELETE CASCADE,
+        chave TEXT,
+        valor JSONB
       )
     `);
-    console.log('✅ Tabela "configuracoes" criada/verificada');
 
-    console.log('✅ Todas as tabelas foram criadas/verificadas com sucesso!');
-
+    console.log('✅ Banco verificado com sucesso!');
   } catch (error) {
-    console.error('❌ Erro ao criar tabelas:', error);
+    console.error('❌ Erro ao criar/verificar tabelas:', error);
+    throw error;
   } finally {
     client.release();
   }
 }
-
 // ==========================================
 // ROTA DE TESTE
 // ==========================================
 
-app.get('/status', (req, res) => {
-  res.json({ status: 'API online com PostgreSQL!' });
+app.get('/status', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT NOW() AS agora, current_database() AS banco');
+    res.json({
+      success: true,
+      status: 'online',
+      banco: 'conectado',
+      database: result.rows[0].banco,
+      horarioBanco: result.rows[0].agora
+    });
+  } catch (error) {
+    console.error('❌ Status/banco:', error);
+    res.status(500).json({
+      success: false,
+      status: 'online',
+      banco: 'erro',
+      error: error.message
+    });
+  }
 });
 
 // ==========================================
@@ -280,7 +284,6 @@ app.get('/criar-tabelas', async (req, res) => {
 // USUÁRIOS
 // ==========================================
 
-// Listar todos os usuários
 app.get('/usuarios', async (req, res) => {
   try {
     const result = await pool.query(`
@@ -292,105 +295,132 @@ app.get('/usuarios', async (req, res) => {
         estabelecimento_id AS "estabelecimentoId",
         cargo,
         ativo,
-        criado_por AS "criadoPor"
+        NULL::BIGINT AS "criadoPor",
+        criado_em AS "criadoEm"
       FROM usuarios
       ORDER BY id
     `);
     res.json(result.rows);
   } catch (error) {
     console.error('❌ Erro ao buscar usuários:', error);
-    res.status(500).json({ error: 'Erro ao buscar usuários' });
+    res.status(500).json({ error: error.message });
   }
 });
 
-// Buscar usuário por ID
 app.get('/usuarios/:id', async (req, res) => {
   try {
-    const { id } = req.params;
-    const result = await pool.query('SELECT * FROM usuarios WHERE id = $1', [id]);
+    const result = await pool.query(`
+      SELECT
+        id, nome, email, senha,
+        estabelecimento_id AS "estabelecimentoId",
+        cargo, ativo, criado_em AS "criadoEm"
+      FROM usuarios
+      WHERE id = $1
+    `, [req.params.id]);
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
     res.json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
-// Criar usuário
 app.post('/usuarios', async (req, res) => {
-  const { nome, email, senha, estabelecimentoId, cargo, ativo, criadoPor } = req.body;
   try {
-    const result = await pool.query(
-      `INSERT INTO usuarios (nome, email, senha, estabelecimento_id, cargo, ativo, criado_por) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [nome, email, senha, estabelecimentoId, cargo, ativo !== undefined ? ativo : true, criadoPor || null]
-    );
+    const { nome, email, senha, estabelecimentoId, cargo, ativo } = req.body;
+
+    if (!nome || !email || !senha) {
+      return res.status(400).json({ error: 'Nome, email e senha são obrigatórios' });
+    }
+
+    const result = await pool.query(`
+      INSERT INTO usuarios
+        (nome, email, senha, estabelecimento_id, cargo, ativo)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING
+        id, nome, email, estabelecimento_id AS "estabelecimentoId",
+        cargo, ativo, criado_em AS "criadoEm"
+    `, [
+      nome.trim(),
+      email.trim().toLowerCase(),
+      senha,
+      estabelecimentoId || null,
+      cargo || 'atendente',
+      ativo !== undefined ? ativo : true
+    ]);
+
     res.status(201).json(result.rows[0]);
-  } catch (err) {
-    console.error('❌ Erro ao criar usuário:', err);
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    console.error('❌ Erro ao criar usuário:', error);
+
+    if (error.code === '23505') {
+      return res.status(409).json({ error: 'Este email já está cadastrado' });
+    }
+
+    res.status(500).json({ error: error.message });
   }
 });
 
-// Atualizar usuário (CORRIGIDO - preserva valores existentes)
 app.put('/usuarios/:id', async (req, res) => {
-  const { id } = req.params;
-  const { nome, email, senha, estabelecimentoId, cargo, ativo } = req.body;
-  
   try {
-    // Buscar o usuário existente
-    const resultExistente = await pool.query('SELECT * FROM usuarios WHERE id = $1', [id]);
-    
-    if (resultExistente.rows.length === 0) {
-      return res.status(404).json({ error: 'Usuário não encontrado' });
-    }
-    
-    const user = resultExistente.rows[0];
-    
-    // 🔥 IMPORTANTE: Preservar valores existentes se não forem fornecidos
-    const nomeFinal = nome !== undefined ? nome : user.nome;
-    const emailFinal = email !== undefined ? email : user.email;
-    const senhaFinal = senha !== undefined ? senha : user.senha;
-    const estabelecimentoIdFinal = estabelecimentoId !== undefined ? estabelecimentoId : user.estabelecimento_id;
-    const cargoFinal = cargo !== undefined ? cargo : user.cargo;
-    const ativoFinal = ativo !== undefined ? ativo : user.ativo;
-    
-    const result = await pool.query(
-      `UPDATE usuarios 
-       SET nome = $1, 
-           email = $2, 
-           senha = $3, 
-           estabelecimento_id = $4, 
-           cargo = $5, 
-           ativo = $6
-       WHERE id = $7 
-       RETURNING *`,
-      [nomeFinal, emailFinal, senhaFinal, estabelecimentoIdFinal, cargoFinal, ativoFinal, id]
+    const existente = await pool.query(
+      'SELECT * FROM usuarios WHERE id = $1',
+      [req.params.id]
     );
-    
-    if (result.rows.length === 0) {
+
+    if (existente.rows.length === 0) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
-    
+
+    const user = existente.rows[0];
+    const { nome, email, senha, estabelecimentoId, cargo, ativo } = req.body;
+
+    const result = await pool.query(`
+      UPDATE usuarios
+      SET
+        nome = $1,
+        email = $2,
+        senha = $3,
+        estabelecimento_id = $4,
+        cargo = $5,
+        ativo = $6
+      WHERE id = $7
+      RETURNING
+        id, nome, email, estabelecimento_id AS "estabelecimentoId",
+        cargo, ativo, criado_em AS "criadoEm"
+    `, [
+      nome !== undefined ? nome : user.nome,
+      email !== undefined ? email.trim().toLowerCase() : user.email,
+      senha !== undefined ? senha : user.senha,
+      estabelecimentoId !== undefined ? estabelecimentoId : user.estabelecimento_id,
+      cargo !== undefined ? cargo : user.cargo,
+      ativo !== undefined ? ativo : user.ativo,
+      req.params.id
+    ]);
+
     res.json(result.rows[0]);
-  } catch (err) {
-    console.error('❌ Erro ao atualizar usuário:', err);
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    console.error('❌ Erro ao atualizar usuário:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
-// Deletar usuário
 app.delete('/usuarios/:id', async (req, res) => {
-  const { id } = req.params;
   try {
-    const result = await pool.query('DELETE FROM usuarios WHERE id = $1 RETURNING *', [id]);
+    const result = await pool.query(
+      'DELETE FROM usuarios WHERE id = $1 RETURNING id',
+      [req.params.id]
+    );
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
-    res.json({ message: 'Usuário deletado com sucesso' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+
+    res.json({ success: true, message: 'Usuário deletado com sucesso' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -398,76 +428,182 @@ app.delete('/usuarios/:id', async (req, res) => {
 // ESTABELECIMENTOS
 // ==========================================
 
-// Listar todos os estabelecimentos
 app.get('/estabelecimentos', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM estabelecimentos ORDER BY id');
+    const result = await pool.query(`
+      SELECT
+        id, nome, cnpj, endereco, telefone, plano,
+        total_mesas AS "totalMesas",
+        total_comandas AS "totalComandas",
+        ativo,
+        criado_em AS "criadoEm"
+      FROM estabelecimentos
+      ORDER BY id
+    `);
     res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
-// Buscar estabelecimento por ID
 app.get('/estabelecimentos/:id', async (req, res) => {
   try {
-    const { id } = req.params;
-    const result = await pool.query('SELECT * FROM estabelecimentos WHERE id = $1', [id]);
+    const result = await pool.query(`
+      SELECT
+        id, nome, cnpj, endereco, telefone, plano,
+        total_mesas AS "totalMesas",
+        total_comandas AS "totalComandas",
+        ativo,
+        criado_em AS "criadoEm"
+      FROM estabelecimentos
+      WHERE id = $1
+    `, [req.params.id]);
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Estabelecimento não encontrado' });
     }
-    res.json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+
+    const e = result.rows[0];
+    e.configuracao = {
+      totalMesas: e.totalMesas || 10,
+      totalComandas: e.totalComandas || 30,
+      corTema: 'emerald'
+    };
+
+    res.json(e);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
-// Criar estabelecimento
 app.post('/estabelecimentos', async (req, res) => {
-  const { nome, cnpj, endereco, telefone, plano, ativo, configuracao } = req.body;
   try {
-    const result = await pool.query(
-      `INSERT INTO estabelecimentos (nome, cnpj, endereco, telefone, plano, ativo, configuracao) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [nome, cnpj, endereco, telefone, plano, ativo !== undefined ? ativo : true, configuracao || {}]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    const {
+      nome,
+      cnpj,
+      endereco,
+      telefone,
+      plano,
+      ativo,
+      totalMesas,
+      totalComandas,
+      configuracao
+    } = req.body;
+
+    if (!nome) {
+      return res.status(400).json({ error: 'Nome do estabelecimento é obrigatório' });
+    }
+
+    const config = configuracao || {};
+
+    const result = await pool.query(`
+      INSERT INTO estabelecimentos
+        (nome, cnpj, endereco, telefone, plano, total_mesas, total_comandas, ativo)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING
+        id, nome, cnpj, endereco, telefone, plano,
+        total_mesas AS "totalMesas",
+        total_comandas AS "totalComandas",
+        ativo,
+        criado_em AS "criadoEm"
+    `, [
+      nome.trim(),
+      cnpj || null,
+      endereco || null,
+      telefone || null,
+      plano || 'basico',
+      Number(config.totalMesas ?? totalMesas ?? 10),
+      Number(config.totalComandas ?? totalComandas ?? 30),
+      ativo !== undefined ? ativo : true
+    ]);
+
+    const estabelecimento = result.rows[0];
+    estabelecimento.configuracao = {
+      totalMesas: estabelecimento.totalMesas,
+      totalComandas: estabelecimento.totalComandas,
+      corTema: config.corTema || 'emerald'
+    };
+
+    res.status(201).json(estabelecimento);
+  } catch (error) {
+    console.error('❌ Erro ao criar estabelecimento:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
-// Atualizar estabelecimento
 app.put('/estabelecimentos/:id', async (req, res) => {
-  const { id } = req.params;
-  const { nome, cnpj, endereco, telefone, plano, ativo, configuracao } = req.body;
   try {
-    const result = await pool.query(
-      `UPDATE estabelecimentos 
-       SET nome = $1, cnpj = $2, endereco = $3, telefone = $4, plano = $5, ativo = $6, configuracao = $7
-       WHERE id = $8 RETURNING *`,
-      [nome, cnpj, endereco, telefone, plano, ativo, configuracao, id]
+    const existente = await pool.query(
+      'SELECT * FROM estabelecimentos WHERE id = $1',
+      [req.params.id]
     );
-    if (result.rows.length === 0) {
+
+    if (existente.rows.length === 0) {
       return res.status(404).json({ error: 'Estabelecimento não encontrado' });
     }
-    res.json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+
+    const e = existente.rows[0];
+    const body = req.body || {};
+    const config = body.configuracao || {};
+
+    const result = await pool.query(`
+      UPDATE estabelecimentos
+      SET
+        nome = $1,
+        cnpj = $2,
+        endereco = $3,
+        telefone = $4,
+        plano = $5,
+        total_mesas = $6,
+        total_comandas = $7,
+        ativo = $8
+      WHERE id = $9
+      RETURNING
+        id, nome, cnpj, endereco, telefone, plano,
+        total_mesas AS "totalMesas",
+        total_comandas AS "totalComandas",
+        ativo,
+        criado_em AS "criadoEm"
+    `, [
+      body.nome !== undefined ? body.nome : e.nome,
+      body.cnpj !== undefined ? body.cnpj : e.cnpj,
+      body.endereco !== undefined ? body.endereco : e.endereco,
+      body.telefone !== undefined ? body.telefone : e.telefone,
+      body.plano !== undefined ? body.plano : e.plano,
+      Number(config.totalMesas ?? body.totalMesas ?? e.total_mesas ?? 10),
+      Number(config.totalComandas ?? body.totalComandas ?? e.total_comandas ?? 30),
+      body.ativo !== undefined ? body.ativo : e.ativo,
+      req.params.id
+    ]);
+
+    const estabelecimento = result.rows[0];
+    estabelecimento.configuracao = {
+      totalMesas: estabelecimento.totalMesas,
+      totalComandas: estabelecimento.totalComandas,
+      corTema: config.corTema || 'emerald'
+    };
+
+    res.json(estabelecimento);
+  } catch (error) {
+    console.error('❌ Erro ao atualizar estabelecimento:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
-// Deletar estabelecimento
 app.delete('/estabelecimentos/:id', async (req, res) => {
-  const { id } = req.params;
   try {
-    const result = await pool.query('DELETE FROM estabelecimentos WHERE id = $1 RETURNING *', [id]);
+    const result = await pool.query(
+      'DELETE FROM estabelecimentos WHERE id = $1 RETURNING id',
+      [req.params.id]
+    );
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Estabelecimento não encontrado' });
     }
-    res.json({ message: 'Estabelecimento deletado com sucesso' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+
+    res.json({ success: true, message: 'Estabelecimento deletado com sucesso' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -475,153 +611,164 @@ app.delete('/estabelecimentos/:id', async (req, res) => {
 // PENDENTES
 // ==========================================
 
-// Listar pendentes
 app.get('/pendentes', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
-        id,
-        nome,
-        email,
-        senha,
+        id, nome, email, senha,
         estabelecimento_id AS "estabelecimentoId",
-        cargo,
-        ativo,
-        criado_por AS "criadoPor"
+        cargo, ativo, criado_em AS "criadoEm"
       FROM usuarios
-      WHERE ativo = false
+      WHERE ativo = FALSE
       ORDER BY id
     `);
     res.json(result.rows);
   } catch (error) {
     console.error('❌ Erro ao buscar pendentes:', error);
-    res.status(500).json({ error: 'Erro ao buscar pendentes' });
+    res.status(500).json({ error: error.message });
   }
 });
 
-// Criar pendente
 app.post('/pendentes', async (req, res) => {
-  const { nome, email, senha, estabelecimentoId, cargo } = req.body;
   try {
-    const cargoFinal = cargo || 'cliente';
-    const estabelecimentoFinal = estabelecimentoId || null;
-    
-    const result = await pool.query(
-      `INSERT INTO usuarios (nome, email, senha, estabelecimento_id, cargo, ativo) 
-       VALUES ($1, $2, $3, $4, $5, false) RETURNING *`,
-      [nome, email, senha, estabelecimentoFinal, cargoFinal]
-    );
+    const { nome, email, senha, estabelecimentoId, cargo } = req.body;
+
+    const result = await pool.query(`
+      INSERT INTO usuarios
+        (nome, email, senha, estabelecimento_id, cargo, ativo)
+      VALUES ($1, $2, $3, $4, $5, FALSE)
+      RETURNING id, nome, email, estabelecimento_id AS "estabelecimentoId", cargo, ativo
+    `, [
+      nome,
+      email.trim().toLowerCase(),
+      senha,
+      estabelecimentoId || null,
+      cargo || 'cliente'
+    ]);
+
     res.status(201).json(result.rows[0]);
-  } catch (err) {
-    console.error('❌ Erro ao criar pendente:', err);
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    console.error('❌ Erro ao criar pendente:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
-// Deletar pendente
 app.delete('/pendentes/:id', async (req, res) => {
-  const { id } = req.params;
   try {
-    const result = await pool.query('DELETE FROM usuarios WHERE id = $1 AND ativo = false RETURNING *', [id]);
+    const result = await pool.query(
+      'DELETE FROM usuarios WHERE id = $1 AND ativo = FALSE RETURNING id',
+      [req.params.id]
+    );
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Pendente não encontrado' });
     }
-    res.json({ message: 'Pendente removido com sucesso' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+
+    res.json({ success: true, message: 'Pendente removido com sucesso' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
 // ==========================================
-// LOGIN (UMA ÚNICA ROTA - SEM DUPLICAÇÃO)
+// LOGIN
 // ==========================================
 
 app.post('/login', async (req, res) => {
   try {
-    const { email, senha } = req.body;
+    let { email, senha } = req.body || {};
+
+    email = String(email || '').trim().toLowerCase();
+    senha = String(senha || '').trim();
 
     console.log('🔐 Tentativa de login:', email);
 
     if (!email || !senha) {
       return res.status(400).json({
         success: false,
+        codigo: 'CAMPOS_OBRIGATORIOS',
         error: 'E-mail e senha são obrigatórios'
       });
     }
 
     const result = await pool.query(`
       SELECT
-        id,
-        nome,
-        email,
-        senha,
-        estabelecimento_id AS "estabelecimentoId",
-        cargo,
-        ativo,
-        criado_por AS "criadoPor"
-      FROM usuarios
-      WHERE LOWER(TRIM(email)) = LOWER(TRIM($1))
+        u.id,
+        u.nome,
+        u.email,
+        u.senha,
+        u.estabelecimento_id AS "estabelecimentoId",
+        u.cargo,
+        u.ativo,
+        e.nome AS "estabelecimentoNome",
+        e.total_mesas AS "totalMesas",
+        e.total_comandas AS "totalComandas",
+        e.ativo AS "estabelecimentoAtivo"
+      FROM usuarios u
+      LEFT JOIN estabelecimentos e
+        ON e.id = u.estabelecimento_id
+      WHERE LOWER(TRIM(u.email)) = $1
       LIMIT 1
     `, [email]);
 
     if (result.rows.length === 0) {
-      console.log('❌ Usuário não encontrado:', email);
+      console.log('❌ EMAIL NÃO ENCONTRADO:', email);
       return res.status(401).json({
         success: false,
-        error: 'Usuário ou senha incorretos'
+        codigo: 'EMAIL_NAO_ENCONTRADO',
+        error: 'E-mail ou senha incorretos'
       });
     }
 
     const usuario = result.rows[0];
 
     console.log('👤 Usuário encontrado:', usuario.nome);
-    console.log('🏢 Estabelecimento:', usuario.estabelecimentoId);
     console.log('👔 Cargo:', usuario.cargo);
-    console.log('✅ Ativo:', usuario.ativo);
+    console.log('🟢 Ativo:', usuario.ativo);
 
-    if (!usuario.ativo) {
+    if (usuario.ativo !== true) {
       return res.status(403).json({
         success: false,
-        error: 'Usuário ainda não foi aprovado'
+        codigo: 'USUARIO_INATIVO',
+        error: 'Este usuário está desativado'
       });
     }
 
-    if (String(usuario.senha) !== String(senha)) {
-      console.log('❌ Senha incorreta para:', email);
+    if (String(usuario.senha) !== senha) {
+      console.log('❌ SENHA INCORRETA:', email);
       return res.status(401).json({
         success: false,
-        error: 'Usuário ou senha incorretos'
+        codigo: 'SENHA_INCORRETA',
+        error: 'E-mail ou senha incorretos'
       });
     }
 
     delete usuario.senha;
 
-    console.log('✅ LOGIN REALIZADO COM SUCESSO:', usuario.nome);
+    usuario.totalMesas = usuario.totalMesas || 10;
+    usuario.totalComandas = usuario.totalComandas || 30;
 
-    res.json({
+    console.log('✅ LOGIN REALIZADO:', usuario.nome);
+
+    return res.json({
       success: true,
-      usuario: usuario
+      usuario
     });
 
   } catch (error) {
-    console.error('❌ Erro no login:', error);
-    res.status(500).json({
+    console.error('❌ ERRO NO LOGIN:', error);
+    return res.status(500).json({
       success: false,
-      error: 'Erro interno ao realizar login'
+      codigo: 'ERRO_SERVIDOR',
+      error: error.message
     });
   }
 });
 
 // ==========================================
-// INICIAR SERVIDOR
-// ==========================================
-// ==========================================
-// LOGIN
+// DEBUG DO BANCO
 // ==========================================
 
-// ======================================================
-// DEBUG - VERIFICAR QUAL BANCO O SERVIDOR ESTÁ USANDO
-// ======================================================
 app.get('/debug/banco', async (req, res) => {
   try {
     const banco = await pool.query(`
@@ -631,10 +778,8 @@ app.get('/debug/banco', async (req, res) => {
         current_schema() AS schema
     `);
 
-    const usuarios = await pool.query(`
-      SELECT
-        COUNT(*)::int AS quantidade
-      FROM usuarios
+    const quantidade = await pool.query(`
+      SELECT COUNT(*)::INT AS quantidade FROM usuarios
     `);
 
     const superAdmin = await pool.query(`
@@ -646,181 +791,27 @@ app.get('/debug/banco', async (req, res) => {
         ativo,
         estabelecimento_id AS "estabelecimentoId"
       FROM usuarios
-      WHERE LOWER(TRIM(email)) = LOWER(TRIM('super@admin.com'))
+      WHERE LOWER(TRIM(email)) = 'super@admin.com'
       LIMIT 1
     `);
 
     res.json({
       sucesso: true,
       banco: banco.rows[0],
-      quantidadeUsuarios: usuarios.rows[0].quantidade,
+      quantidadeUsuarios: quantidade.rows[0].quantidade,
       superAdminEncontrado: superAdmin.rows.length > 0,
       usuario: superAdmin.rows[0] || null
     });
-
   } catch (error) {
-    console.error('ERRO DEBUG BANCO:', error);
-
-    res.status(500).json({
-      sucesso: false,
-      erro: error.message
-    });
+    console.error('❌ DEBUG BANCO:', error);
+    res.status(500).json({ sucesso: false, erro: error.message });
   }
 });
+
 // ==========================================
-// LOGIN - POSTGRESQL
+// INICIAR SERVIDOR
 // ==========================================
 
-// ======================================================
-// LOGIN
-// ======================================================
-app.post('/login', async (req, res) => {
-  try {
-
-    let { email, senha } = req.body;
-
-    // Normaliza os dados recebidos
-    email = String(email || '').trim().toLowerCase();
-    senha = String(senha || '').trim();
-
-    console.log('');
-    console.log('======================================');
-    console.log('🔐 NOVA TENTATIVA DE LOGIN');
-    console.log('📧 Email:', email);
-    console.log('======================================');
-
-    // --------------------------------------
-    // VALIDA CAMPOS
-    // --------------------------------------
-    if (!email || !senha) {
-
-      console.log('❌ Email ou senha não informado');
-
-      return res.status(400).json({
-        success: false,
-        codigo: 'CAMPOS_OBRIGATORIOS',
-        error: 'E-mail e senha são obrigatórios'
-      });
-    }
-
-    // --------------------------------------
-    // PROCURA USUÁRIO
-    // --------------------------------------
-    const result = await pool.query(`
-      SELECT
-        u.id,
-        u.nome,
-        u.email,
-        u.senha,
-        u.estabelecimento_id AS "estabelecimentoId",
-        u.cargo,
-        u.ativo,
-
-        e.nome AS "estabelecimentoNome",
-        e.ativo AS "estabelecimentoAtivo",
-        e.total_mesas AS "totalMesas",
-        e.total_comandas AS "totalComandas"
-
-      FROM usuarios u
-
-      LEFT JOIN estabelecimentos e
-        ON e.id = u.estabelecimento_id
-
-      WHERE LOWER(TRIM(u.email)) = LOWER(TRIM($1))
-
-      LIMIT 1
-    `, [email]);
-
-    // --------------------------------------
-    // USUÁRIO NÃO EXISTE
-    // --------------------------------------
-    if (result.rows.length === 0) {
-
-      console.log('❌ EMAIL NÃO ENCONTRADO NO BANCO');
-      console.log('📧 Email pesquisado:', email);
-
-      return res.status(401).json({
-        success: false,
-        codigo: 'EMAIL_NAO_ENCONTRADO',
-        error: 'E-mail ou senha incorretos'
-      });
-    }
-
-    const usuario = result.rows[0];
-
-    console.log('✅ USUÁRIO ENCONTRADO');
-    console.log('👤 Nome:', usuario.nome);
-    console.log('📧 Email:', usuario.email);
-    console.log('👔 Cargo:', usuario.cargo);
-    console.log('🟢 Ativo:', usuario.ativo);
-    console.log('🏢 Estabelecimento:', usuario.estabelecimentoId);
-
-    // --------------------------------------
-    // USUÁRIO DESATIVADO
-    // --------------------------------------
-    if (usuario.ativo !== true) {
-
-      console.log('❌ USUÁRIO DESATIVADO');
-
-      return res.status(403).json({
-        success: false,
-        codigo: 'USUARIO_INATIVO',
-        error: 'Este usuário está desativado'
-      });
-    }
-
-    // --------------------------------------
-    // COMPARAÇÃO DA SENHA
-    // --------------------------------------
-    const senhaBanco = String(usuario.senha || '');
-
-    console.log('🔑 Senha recebida:', senha ? 'SIM' : 'NÃO');
-    console.log('🔑 Senha cadastrada:', senhaBanco ? 'SIM' : 'NÃO');
-
-    if (senhaBanco !== senha) {
-
-      console.log('❌ SENHA INCORRETA');
-
-      return res.status(401).json({
-        success: false,
-        codigo: 'SENHA_INCORRETA',
-        error: 'E-mail ou senha incorretos'
-      });
-    }
-
-    // --------------------------------------
-    // REMOVE SENHA DA RESPOSTA
-    // --------------------------------------
-    delete usuario.senha;
-
-    console.log('======================================');
-    console.log('✅ LOGIN REALIZADO COM SUCESSO');
-    console.log('👤', usuario.nome);
-    console.log('======================================');
-
-    // --------------------------------------
-    // RETORNA USUÁRIO
-    // --------------------------------------
-    return res.json({
-      success: true,
-      usuario: usuario
-    });
-
-  } catch (error) {
-
-    console.error('');
-    console.error('======================================');
-    console.error('❌ ERRO NO LOGIN');
-    console.error(error);
-    console.error('======================================');
-
-    return res.status(500).json({
-      success: false,
-      codigo: 'ERRO_SERVIDOR',
-      error: 'Erro interno ao realizar login'
-    });
-  }
-});
 const PORT = process.env.PORT || 3000;
 
 criarTabelas().then(() => {
@@ -841,5 +832,6 @@ criarTabelas().then(() => {
     console.log(`   POST /pendentes`);
     console.log(`   DELETE /pendentes/:id`);
     console.log(`   POST /login`);
+    console.log(`   GET  /debug/banco`);
   });
 });

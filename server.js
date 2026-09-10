@@ -674,14 +674,21 @@ app.delete('/pendentes/:id', async (req, res) => {
 // LOGIN
 // ==========================================
 
+// ======================================================
+// LOGIN
+// ======================================================
 app.post('/login', async (req, res) => {
   try {
-    let { email, senha } = req.body || {};
+    let { email, senha } = req.body;
 
     email = String(email || '').trim().toLowerCase();
     senha = String(senha || '').trim();
 
-    console.log('🔐 Tentativa de login:', email);
+    console.log('');
+    console.log('======================================');
+    console.log('🔐 TENTATIVA DE LOGIN');
+    console.log('📧 Email:', email);
+    console.log('======================================');
 
     if (!email || !senha) {
       return res.status(400).json({
@@ -691,28 +698,32 @@ app.post('/login', async (req, res) => {
       });
     }
 
+    // ==================================================
+    // BUSCA SOMENTE NA TABELA USUARIOS
+    // NÃO USA total_mesas
+    // NÃO USA total_comandas
+    // NÃO USA configuracao
+    // NÃO USA criado_por
+    // ==================================================
+
     const result = await pool.query(`
       SELECT
-        u.id,
-        u.nome,
-        u.email,
-        u.senha,
-        u.estabelecimento_id AS "estabelecimentoId",
-        u.cargo,
-        u.ativo,
-        e.nome AS "estabelecimentoNome",
-        e.total_mesas AS "totalMesas",
-        e.total_comandas AS "totalComandas",
-        e.ativo AS "estabelecimentoAtivo"
-      FROM usuarios u
-      LEFT JOIN estabelecimentos e
-        ON e.id = u.estabelecimento_id
-      WHERE LOWER(TRIM(u.email)) = $1
+        id,
+        nome,
+        email,
+        senha,
+        estabelecimento_id AS "estabelecimentoId",
+        cargo,
+        ativo
+      FROM usuarios
+      WHERE LOWER(TRIM(email)) = LOWER(TRIM($1))
       LIMIT 1
     `, [email]);
 
     if (result.rows.length === 0) {
-      console.log('❌ EMAIL NÃO ENCONTRADO:', email);
+
+      console.log('❌ EMAIL NÃO ENCONTRADO');
+
       return res.status(401).json({
         success: false,
         codigo: 'EMAIL_NAO_ENCONTRADO',
@@ -722,11 +733,21 @@ app.post('/login', async (req, res) => {
 
     const usuario = result.rows[0];
 
-    console.log('👤 Usuário encontrado:', usuario.nome);
+    console.log('✅ USUÁRIO ENCONTRADO');
+    console.log('👤 Nome:', usuario.nome);
+    console.log('📧 Email:', usuario.email);
     console.log('👔 Cargo:', usuario.cargo);
+    console.log('🏢 Estabelecimento:', usuario.estabelecimentoId);
     console.log('🟢 Ativo:', usuario.ativo);
 
+    // ==================================================
+    // VERIFICA USUÁRIO ATIVO
+    // ==================================================
+
     if (usuario.ativo !== true) {
+
+      console.log('❌ USUÁRIO INATIVO');
+
       return res.status(403).json({
         success: false,
         codigo: 'USUARIO_INATIVO',
@@ -734,8 +755,14 @@ app.post('/login', async (req, res) => {
       });
     }
 
+    // ==================================================
+    // VERIFICA SENHA
+    // ==================================================
+
     if (String(usuario.senha) !== senha) {
-      console.log('❌ SENHA INCORRETA:', email);
+
+      console.log('❌ SENHA INCORRETA');
+
       return res.status(401).json({
         success: false,
         codigo: 'SENHA_INCORRETA',
@@ -743,68 +770,98 @@ app.post('/login', async (req, res) => {
       });
     }
 
+    // ==================================================
+    // SUPERA ADMIN
+    // ==================================================
+
+    if (usuario.cargo === 'super_admin') {
+
+      console.log('👑 LOGIN COMO SUPER ADMIN');
+
+      delete usuario.senha;
+
+      return res.json({
+        success: true,
+        usuario: {
+          ...usuario,
+          estabelecimentoNome: 'Administração do Sistema'
+        }
+      });
+    }
+
+    // ==================================================
+    // USUÁRIO DE ESTABELECIMENTO
+    // ==================================================
+
+    let estabelecimentoNome = 'Estabelecimento';
+
+    if (usuario.estabelecimentoId) {
+
+      try {
+
+        const estabelecimentoResult = await pool.query(`
+          SELECT
+            id,
+            nome
+          FROM estabelecimentos
+          WHERE id = $1
+          LIMIT 1
+        `, [usuario.estabelecimentoId]);
+
+        if (estabelecimentoResult.rows.length > 0) {
+          estabelecimentoNome =
+            estabelecimentoResult.rows[0].nome;
+        }
+
+      } catch (erroEstabelecimento) {
+
+        console.warn(
+          '⚠️ Não foi possível buscar estabelecimento:',
+          erroEstabelecimento.message
+        );
+
+        // Não impede o login
+        estabelecimentoNome = 'Estabelecimento';
+      }
+    }
+
+    // ==================================================
+    // REMOVE SENHA
+    // ==================================================
+
     delete usuario.senha;
 
-    usuario.totalMesas = usuario.totalMesas || 10;
-    usuario.totalComandas = usuario.totalComandas || 30;
+    // ==================================================
+    // LOGIN REALIZADO
+    // ==================================================
 
-    console.log('✅ LOGIN REALIZADO:', usuario.nome);
+    console.log('======================================');
+    console.log('✅ LOGIN REALIZADO COM SUCESSO');
+    console.log('👤', usuario.nome);
+    console.log('======================================');
 
     return res.json({
       success: true,
-      usuario
+
+      usuario: {
+        ...usuario,
+        estabelecimentoNome
+      }
     });
 
   } catch (error) {
-    console.error('❌ ERRO NO LOGIN:', error);
+
+    console.error('');
+    console.error('======================================');
+    console.error('❌ ERRO NO LOGIN');
+    console.error(error);
+    console.error('======================================');
+
     return res.status(500).json({
       success: false,
       codigo: 'ERRO_SERVIDOR',
       error: error.message
     });
-  }
-});
-
-// ==========================================
-// DEBUG DO BANCO
-// ==========================================
-
-app.get('/debug/banco', async (req, res) => {
-  try {
-    const banco = await pool.query(`
-      SELECT
-        current_database() AS banco,
-        current_user AS usuario_banco,
-        current_schema() AS schema
-    `);
-
-    const quantidade = await pool.query(`
-      SELECT COUNT(*)::INT AS quantidade FROM usuarios
-    `);
-
-    const superAdmin = await pool.query(`
-      SELECT
-        id,
-        nome,
-        email,
-        cargo,
-        ativo,
-        estabelecimento_id AS "estabelecimentoId"
-      FROM usuarios
-      WHERE LOWER(TRIM(email)) = 'super@admin.com'
-      LIMIT 1
-    `);
-
-    res.json({
-      sucesso: true,
-      banco: banco.rows[0],
-      quantidadeUsuarios: quantidade.rows[0].quantidade,
-      superAdminEncontrado: superAdmin.rows.length > 0,
-      usuario: superAdmin.rows[0] || null
-    });
-  } catch (error) {
-    console.error('❌ DEBUG BANCO:', error);
-    res.status(500).json({ sucesso: false, erro: error.message });
   }
 });
 
